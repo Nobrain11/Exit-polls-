@@ -1,0 +1,46 @@
+{
+  "name": "quite-trading-bot",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "nodemon",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "worker:scanner": "ts-node src/workers/scanner.ts",
+    "worker:sell-engine": "ts-node src/workers/sell-engine.ts",
+    "worker:copy-trade": "ts-node src/workers/copy-trade.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.15.0",
+    "@solana/web3.js": "^1.91.0",
+    "@solana/spl-token": "^0.4.6",
+    "@jup-ag/api": "^6.0.0",
+    "@jito-labs/jito-ts": "^0.2.0",
+    "telegraf": "^4.15.0",
+    "ioredis": "^5.4.0",
+    "winston": "^3.12.0",
+    "zod": "^3.23.0",
+    "dotenv": "^16.4.0",
+    "node-cron": "^3.0.3",
+    "bs58": "^5.0.0",
+    "tweetnacl": "^1.0.3",
+    "crypto-js": "^4.2.0",
+    "uuid": "^9.0.0",
+    "borsh": "^2.0.0",
+    "date-fns": "^3.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.0",
+    "@types/crypto-js": "^4.2.0",
+    "@types/uuid": "^9.0.0",
+    "typescript": "^5.4.0",
+    "nodemon": "^3.1.0",
+    "ts-node": "^10.9.0",
+    "eslint": "^8.57.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "prettier": "^3.2.0"
+  }
+}
