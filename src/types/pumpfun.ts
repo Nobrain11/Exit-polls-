@@ -1,0 +1,11 @@
+export const PUMPFUN_PROGRAM_ID = '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P';
+export const PUMPFUN_GLOBAL = '4wTV1YmiEkRvAtNtsSGPtUrqRYQMe5SKy2uB4Jjaxnjf';
+export const PUMPFUN_FEE_RECIPIENT = 'CebN5WGQ4jvEPvsVU4EoHEpgzq1VV7AbicfhtW4X9iEz';
+
+export interface BondingCurveState {
+  virtualTokenReserves: bigint;
+  virtualSolReserves: bigint;
+  realTokenReserves: bigint;
+  realSolReserves: bigint;
+  tokenTotalSupply: bigint;
+}
