@@ -13,7 +13,7 @@
     "worker:copy-trade": "ts-node src/workers/copy-trade.ts"
   },
   "dependencies": {
-    "@prisma/client": "^5.19.0",
+    "@prisma/client": "5.19.0",
     "@solana/web3.js": "^1.91.0",
     "@solana/spl-token": "^0.4.6",
     "@jup-ag/api": "^6.0.0",
