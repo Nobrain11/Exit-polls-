@@ -4,13 +4,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY prisma ./prisma/
-
-# Provide a dummy DATABASE_URL so Prisma does not choke on env() resolution
-ENV DATABASE_URL=postgresql://dummy:dummy@localhost:5432/dummy
-
-# Generate Prisma client
-RUN npx prisma generate
-
+RUN npx prisma@5.15.0 generate
 COPY . .
 RUN npm run build
 
