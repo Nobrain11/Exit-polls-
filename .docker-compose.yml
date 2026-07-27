@@ -1,0 +1,37 @@
+version: '3.8'
+services:
+  bot:
+    build: .
+    environment:
+      - BOT_TOKEN=${BOT_TOKEN}
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/quite_bot
+      - REDIS_URL=redis://redis:6379/0
+      - HELIUS_RPC_URL=${HELIUS_RPC_URL}
+      - HELIUS_WS_URL=${HELIUS_WS_URL}
+      - JUPITER_API_URL=${JUPITER_API_URL}
+      - JITO_BLOCK_ENGINE_URL=${JITO_BLOCK_ENGINE_URL}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - ADMIN_CHAT_ID=${ADMIN_CHAT_ID}
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: quite_bot
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+volumes:
+  pgdata:
