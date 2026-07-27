@@ -1,14 +1,15 @@
 FROM node:20-alpine AS builder
+RUN apk add --no-cache openssl ca-certificates
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY prisma ./prisma/
-# Pin Prisma CLI to 5.15.0 to keep compatibility with schema
 RUN npx prisma@5.15.0 generate
 COPY . .
 RUN npm run build
 
 FROM node:20-alpine AS production
+RUN apk add --no-cache openssl ca-certificates
 WORKDIR /app
 COPY --from=builder /app/package*.json ./
 RUN npm ci --omit=dev
