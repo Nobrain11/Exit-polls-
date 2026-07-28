@@ -46,25 +46,20 @@ async function start() {
     await prisma.$connect();
     logger.info('Database connected');
 
-    // Force delete webhook and use long polling
+    // Delete webhook and use long polling
     await bot.telegram.deleteWebhook();
-    logger.info('Webhook deleted');
+    logger.info('Webhook deleted, starting long polling...');
 
-    // CRITICAL: Launch with explicit polling config
-    await bot.launch({
-      dropPendingUpdates: true,
-      polling: {
-        timeout: 30,
-        limit: 100,
-      },
+    // Launch with long polling (correct for Telegraf v4.15)
+    bot.launch(() => {
+      logger.info('✅ Quite bot launched');
+      
+      // Start background engines AFTER bot is running
+      scanner.start();
+      sellEngine.start();
+      copyEngine.start();
+      logger.info('Background engines started');
     });
-    logger.info('✅ Quite bot launched');
-
-    // Start engines
-    scanner.start();
-    sellEngine.start();
-    copyEngine.start();
-    logger.info('Background engines started');
 
     // Sell notification
     sellEngine.on('sell', async (positionId: string, reason: string) => {
