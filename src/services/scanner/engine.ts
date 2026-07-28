@@ -14,12 +14,10 @@ export class ScannerEngine extends EventEmitter {
   private subId: number | null = null;
 
   async start() {
-    // Subscribe to Pump.fun program logs
     this.subId = this.conn.onLogs(
       new PublicKey(PUMPFUN_PROGRAM_ID),
       async (logs) => {
         if (logs.err) return;
-        // Extract new token mints from logs (simplified – real parsing required)
         const mints = this.extractMintsFromLogs(logs);
         for (const mintStr of mints) {
           if (!this.watchedTokens.has(mintStr)) {
@@ -49,23 +47,20 @@ export class ScannerEngine extends EventEmitter {
     );
     logger.info('Scanner engine subscribed to Pump.fun logs');
 
-    // Regularly update holders, volume, prices via Jupiter API and Helius
     setInterval(() => this.updateMetrics(), 5000);
   }
 
   private extractMintsFromLogs(logs: any): string[] {
-    // Production: parse instructions to get mint addresses
     return [];
   }
 
   private async updateMetrics() {
     for (const [mint, token] of this.watchedTokens) {
       try {
-        const quote = await (
-          await fetch(
-            `https://quote-api.jup.ag/v6/quote?inputMint=So11111111111111111111111111111111111111112&outputMint=${mint}&amount=1000000000&slippageBps=50`,
-          )
-        ).json();
+        const response = await fetch(
+          `https://quote-api.jup.ag/v6/quote?inputMint=So11111111111111111111111111111111111111112&outputMint=${mint}&amount=1000000000&slippageBps=50`
+        );
+        const quote: any = await response.json(); // <-- fix: use 'any' to access outAmount
         if (quote?.outAmount) {
           token.price = 1e9 / Number(quote.outAmount);
           token.marketCap = token.price * (token.marketCap / (token.price || 1));
@@ -75,7 +70,6 @@ export class ScannerEngine extends EventEmitter {
       }
     }
 
-    // Calculate trending scores
     const trending: TrendingToken[] = [];
     for (const token of this.watchedTokens.values()) {
       const score = Math.min(100, token.marketCap * 0.1 + (token.liquidity || 0) * 5);
@@ -83,7 +77,16 @@ export class ScannerEngine extends EventEmitter {
     }
     trending.sort((a, b) => b.score - a.score);
     await this.redis.set('trending_tokens', JSON.stringify(trending.slice(0, 10)), 'EX', 5);
-    await this.redis.set('latest_tokens', JSON.stringify(Array.from(this.watchedTokens.values()).sort((a,b) => b.createdAt - a.createdAt).slice(0, 10)), 'EX', 5);
+    await this.redis.set(
+      'latest_tokens',
+      JSON.stringify(
+        Array.from(this.watchedTokens.values())
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .slice(0, 10),
+      ),
+      'EX',
+      5,
+    );
     this.emit('trending', trending.slice(0, 10));
   }
 
