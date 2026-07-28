@@ -1,7 +1,7 @@
 import { PublicKey } from '@solana/web3.js';
 import { getConnection } from '../../core/solana-client';
 import { getKeypair } from '../wallet/manager';
-import { executeBuy, executeSell } from '../trading/executor';
+import { executeBuy, executeSell } from '../trading/executor'; // path is correct
 import prisma from '../../db/prisma';
 import logger from '../../core/logger';
 import { EventEmitter } from 'events';
@@ -46,12 +46,11 @@ export class CopyTradeEngine extends EventEmitter {
   }
 
   private getInvolvedWallets(logs: any): string[] {
-    // Simplified: extract account keys from log's instruction
     return [];
   }
 
   private async handleTargetTransaction(target: string, config: any, logs: any) {
-    // Decode transaction to find swap instruction and mirror with percentage
+    // placeholder for actual copy logic
   }
 
   stop() {
