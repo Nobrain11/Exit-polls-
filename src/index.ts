@@ -9,11 +9,19 @@ import { scanner } from './services/scanner/engine';
 import { SellEngine } from './services/trading/sell-engine';
 import { CopyTradeEngine } from './services/copytrade/engine';
 import { getRedis } from './core/redis-client';
-import prisma from './db/prisma';
 import { NotificationEngine } from './services/notifications/engine';
 import { BotContext } from './bot/core/types';
+import prisma from './db/prisma';
 
 const bot = new Telegraf<BotContext>(env.BOT_TOKEN);
+
+// Global error handlers so the bot never dies silently
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled Rejection:', reason);
+});
+process.on('uncaughtException', (err) => {
+  logger.error('Uncaught Exception:', err);
+});
 
 bot.use(sessionMiddleware);
 bot.use(authMiddleware);
@@ -28,15 +36,17 @@ const notifier = new NotificationEngine(bot);
 (async () => {
   await getRedis().connect();
   await prisma.$connect();
+  logger.info('Redis and Database connected');
 
-  await bot.launch();
-  logger.info('Quite bot launched');
+  // FIX: delete any old webhook, then start long polling
+  await bot.telegram.deleteWebhook();
+  await bot.launch({ dropPendingUpdates: true });
+  logger.info('Quite bot launched (long polling)');
 
   scanner.start();
   sellEngine.start();
   copyEngine.start();
 
-  // FIXED: explicit types added to callback parameters
   sellEngine.on('sell', async (positionId: string, reason: string) => {
     const pos = await prisma.position.findUnique({ where: { id: positionId } });
     if (pos) {
