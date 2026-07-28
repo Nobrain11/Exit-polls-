@@ -4,29 +4,16 @@ import { BondingCurveState, PUMPFUN_PROGRAM_ID } from '../../types/pumpfun';
 import * as borsh from 'borsh';
 import logger from '../../core/logger';
 
-class BondingCurveLayout {
-  virtualTokenReserves: bigint = 0n;
-  virtualSolReserves: bigint = 0n;
-  realTokenReserves: bigint = 0n;
-  realSolReserves: bigint = 0n;
-  tokenTotalSupply: bigint = 0n;
-
-  static schema = new Map([
-    [
-      BondingCurveLayout,
-      {
-        kind: 'struct',
-        fields: [
-          ['virtualTokenReserves', 'u64'],
-          ['virtualSolReserves', 'u64'],
-          ['realTokenReserves', 'u64'],
-          ['realSolReserves', 'u64'],
-          ['tokenTotalSupply', 'u64'],
-        ],
-      },
-    ],
-  ]);
-}
+// Define the schema as a plain object, not a Map/class
+const bondingCurveSchema: borsh.Schema = {
+  struct: {
+    virtualTokenReserves: 'u64',
+    virtualSolReserves: 'u64',
+    realTokenReserves: 'u64',
+    realSolReserves: 'u64',
+    tokenTotalSupply: 'u64',
+  },
+};
 
 export async function getPumpFunBondingCurve(mint: PublicKey): Promise<BondingCurveState | null> {
   const conn = getConnection();
@@ -37,13 +24,16 @@ export async function getPumpFunBondingCurve(mint: PublicKey): Promise<BondingCu
   try {
     const accountInfo = await conn.getAccountInfo(bondingCurveAddress);
     if (!accountInfo) return null;
-    // Cast schema to any to bypass strict Map type issue
-    const data = borsh.deserialize(
-      BondingCurveLayout.schema as any,
-      BondingCurveLayout,
-      accountInfo.data,
-    );
-    return data as BondingCurveState;
+    // Deserialise using the plain schema – returns a plain object
+    const data = borsh.deserialize(bondingCurveSchema, accountInfo.data) as BondingCurveState;
+    // Convert bigint values from string (borsh may return them as BigInt, but we ensure)
+    return {
+      virtualTokenReserves: BigInt(data.virtualTokenReserves),
+      virtualSolReserves: BigInt(data.virtualSolReserves),
+      realTokenReserves: BigInt(data.realTokenReserves),
+      realSolReserves: BigInt(data.realSolReserves),
+      tokenTotalSupply: BigInt(data.tokenTotalSupply),
+    };
   } catch (e) {
     logger.warn(`Failed to fetch bonding curve for ${mint.toBase58()}: ${e}`);
     return null;
