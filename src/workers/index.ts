@@ -36,9 +36,12 @@ const notifier = new NotificationEngine(bot);
   sellEngine.start();
   copyEngine.start();
 
-  sellEngine.on('sell', async (positionId, reason) => {
+  // FIXED: explicit types added to callback parameters
+  sellEngine.on('sell', async (positionId: string, reason: string) => {
     const pos = await prisma.position.findUnique({ where: { id: positionId } });
-    if (pos) notifier.send(pos.userId, 'sell_executed', `Position closed: ${reason}`);
+    if (pos) {
+      notifier.send(pos.userId, 'sell_executed', `Position closed: ${reason}`);
+    }
   });
 
   process.once('SIGINT', () => {
