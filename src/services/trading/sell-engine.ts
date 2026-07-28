@@ -8,7 +8,7 @@ import { EventEmitter } from 'events';
 import logger from '../../core/logger';
 
 export class SellEngine extends EventEmitter {
-  private monitorInterval: NodeJS.Timer | null = null;
+  private monitorInterval: NodeJS.Timeout | null = null; // <-- fixed type
 
   start() {
     this.monitorInterval = setInterval(() => this.checkPositions(), 5000);
