@@ -37,7 +37,12 @@ export async function getPumpFunBondingCurve(mint: PublicKey): Promise<BondingCu
   try {
     const accountInfo = await conn.getAccountInfo(bondingCurveAddress);
     if (!accountInfo) return null;
-    const data = borsh.deserialize(BondingCurveLayout.schema, BondingCurveLayout, accountInfo.data);
+    // Cast schema to any to bypass strict Map type issue
+    const data = borsh.deserialize(
+      BondingCurveLayout.schema as any,
+      BondingCurveLayout,
+      accountInfo.data,
+    );
     return data as BondingCurveState;
   } catch (e) {
     logger.warn(`Failed to fetch bonding curve for ${mint.toBase58()}: ${e}`);
