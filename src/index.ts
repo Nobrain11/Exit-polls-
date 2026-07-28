@@ -15,7 +15,7 @@ import prisma from './db/prisma';
 
 const bot = new Telegraf<BotContext>(env.BOT_TOKEN);
 
-// Catch all errors so the bot never dies
+// Catch all errors
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
@@ -35,25 +35,32 @@ const notifier = new NotificationEngine(bot);
 
 async function start() {
   try {
-    // Connect services
+    // Connect Redis
     const redis = getRedis();
     if (!['connect', 'ready'].includes(redis.status)) {
       await redis.connect();
     }
     logger.info('Redis connected');
 
+    // Connect database
     await prisma.$connect();
     logger.info('Database connected');
 
-    // Delete any existing webhook to ensure long polling works
+    // Force delete webhook and use long polling
     await bot.telegram.deleteWebhook();
-    logger.info('Webhook deleted, starting long polling...');
+    logger.info('Webhook deleted');
 
-    // Launch the bot
-    await bot.launch({ dropPendingUpdates: true });
-    logger.info('✅ Quite bot launched (long polling)');
+    // CRITICAL: Launch with explicit polling config
+    await bot.launch({
+      dropPendingUpdates: true,
+      polling: {
+        timeout: 30,
+        limit: 100,
+      },
+    });
+    logger.info('✅ Quite bot launched');
 
-    // Start background engines
+    // Start engines
     scanner.start();
     sellEngine.start();
     copyEngine.start();
@@ -78,24 +85,17 @@ async function start() {
 }
 
 // Graceful shutdown
-process.once('SIGINT', async () => {
-  logger.info('Shutting down...');
-  bot.stop('SIGINT');
+const shutdown = async (signal: string) => {
+  logger.info(`Received ${signal}, shutting down...`);
+  bot.stop(signal);
   scanner.stop();
   sellEngine.stop();
   copyEngine.stop();
   await prisma.$disconnect();
   process.exit(0);
-});
+};
 
-process.once('SIGTERM', async () => {
-  logger.info('Shutting down...');
-  bot.stop('SIGTERM');
-  scanner.stop();
-  sellEngine.stop();
-  copyEngine.stop();
-  await prisma.$disconnect();
-  process.exit(0);
-});
+process.once('SIGINT', () => shutdown('SIGINT'));
+process.once('SIGTERM', () => shutdown('SIGTERM'));
 
 start();
