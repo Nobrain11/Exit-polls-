@@ -1,4 +1,5 @@
 import { PublicKey } from '@solana/web3.js';
+import bs58 from 'bs58';
 
 export function isValidSolanaAddress(address: string): boolean {
   try {
@@ -11,8 +12,8 @@ export function isValidSolanaAddress(address: string): boolean {
 
 export function isValidPrivateKey(key: string): boolean {
   try {
-    const buffer = Buffer.from(key, 'base58');
-    return buffer.length === 64;
+    const decoded = bs58.decode(key);
+    return decoded.length === 64;
   } catch {
     return false;
   }
