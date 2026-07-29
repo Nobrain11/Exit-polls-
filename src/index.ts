@@ -13,9 +13,9 @@ import { NotificationEngine } from './services/notifications/engine';
 import { BotContext } from './bot/core/types';
 import prisma from './db/prisma';
 
-const bot = new Telegraf<BotContext>(env.BOT_TOKEN);
-
-// Catch all errors
+// ---------------------------------------------------------------------------
+// Safety nets – catch anything that would kill the process
+// ---------------------------------------------------------------------------
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
@@ -23,45 +23,57 @@ process.on('uncaughtException', (err) => {
   logger.error('Uncaught Exception:', err);
 });
 
+// ---------------------------------------------------------------------------
+// Bot setup
+// ---------------------------------------------------------------------------
+const bot = new Telegraf<BotContext>(env.BOT_TOKEN);
+
 bot.use(sessionMiddleware);
 bot.use(authMiddleware);
 bot.use(rateLimitMiddleware);
 
 setupBotRoutes(bot);
 
+// ---------------------------------------------------------------------------
+// Background engines
+// ---------------------------------------------------------------------------
 const sellEngine = new SellEngine();
 const copyEngine = new CopyTradeEngine();
 const notifier = new NotificationEngine(bot);
 
-async function start() {
+// ---------------------------------------------------------------------------
+// Start everything
+// ---------------------------------------------------------------------------
+(async () => {
   try {
-    // Connect Redis
+    // 1) Connect services
     const redis = getRedis();
     if (!['connect', 'ready'].includes(redis.status)) {
       await redis.connect();
     }
     logger.info('Redis connected');
 
-    // Connect database
     await prisma.$connect();
     logger.info('Database connected');
 
-    // Delete webhook and use long polling
-    await bot.telegram.deleteWebhook();
-    logger.info('Webhook deleted, starting long polling...');
+    // 2) Remove any leftover webhook (crucial for Railway)
+    const webhookInfo = await bot.telegram.getWebhookInfo();
+    if (webhookInfo.url) {
+      await bot.telegram.deleteWebhook();
+      logger.info('Old webhook removed');
+    }
 
-    // Launch with long polling (correct for Telegraf v4.15)
-    bot.launch(() => {
-      logger.info('✅ Quite bot launched');
-      
-      // Start background engines AFTER bot is running
-      scanner.start();
-      sellEngine.start();
-      copyEngine.start();
-      logger.info('Background engines started');
-    });
+    // 3) Launch with EXPLICIT polling – NO webhook, NO port
+    await bot.launch({ dropPendingUpdates: true });
+    logger.info('✅ Quite bot launched (polling mode)');
 
-    // Sell notification
+    // 4) Start background engines
+    scanner.start();
+    sellEngine.start();
+    copyEngine.start();
+    logger.info('Background engines started');
+
+    // 5) Wire sell events -> notifications
     sellEngine.on('sell', async (positionId: string, reason: string) => {
       try {
         const pos = await prisma.position.findUnique({ where: { id: positionId } });
@@ -72,16 +84,17 @@ async function start() {
         logger.error('Sell notification error:', err);
       }
     });
-
   } catch (err) {
     logger.error('Startup error:', err);
     process.exit(1);
   }
-}
+})();
 
-// Graceful shutdown
+// ---------------------------------------------------------------------------
+// Graceful shutdown (Railway sends SIGTERM)
+// ---------------------------------------------------------------------------
 const shutdown = async (signal: string) => {
-  logger.info(`Received ${signal}, shutting down...`);
+  logger.info(`Received ${signal}, shutting down…`);
   bot.stop(signal);
   scanner.stop();
   sellEngine.stop();
@@ -92,5 +105,3 @@ const shutdown = async (signal: string) => {
 
 process.once('SIGINT', () => shutdown('SIGINT'));
 process.once('SIGTERM', () => shutdown('SIGTERM'));
-
-start();
