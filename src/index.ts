@@ -14,17 +14,18 @@ import { BotContext } from './bot/core/types';
 import prisma from './db/prisma';
 
 // ---------------------------------------------------------------------------
-// Safety nets – catch anything that would kill the process
+// Safety nets
 // ---------------------------------------------------------------------------
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
+
 process.on('uncaughtException', (err) => {
   logger.error('Uncaught Exception:', err);
 });
 
 // ---------------------------------------------------------------------------
-// Bot setup
+// Create bot instance FIRST
 // ---------------------------------------------------------------------------
 const bot = new Telegraf<BotContext>(env.BOT_TOKEN);
 
@@ -34,46 +35,45 @@ bot.use(rateLimitMiddleware);
 
 setupBotRoutes(bot);
 
-// ---------------------------------------------------------------------------
-// Background engines
-// ---------------------------------------------------------------------------
 const sellEngine = new SellEngine();
 const copyEngine = new CopyTradeEngine();
 const notifier = new NotificationEngine(bot);
 
 // ---------------------------------------------------------------------------
-// Start everything
+// START FUNCTION — called immediately
 // ---------------------------------------------------------------------------
-(async () => {
+async function start() {
+  console.log('🚀 Starting Quite bot...');
+  
   try {
-    // 1) Connect services
+    // 1. Connect Redis
+    console.log('Connecting to Redis...');
     const redis = getRedis();
-    if (!['connect', 'ready'].includes(redis.status)) {
-      await redis.connect();
-    }
-    logger.info('Redis connected');
+    await redis.connect();
+    console.log('✅ Redis connected');
 
+    // 2. Connect Database
+    console.log('Connecting to database...');
     await prisma.$connect();
-    logger.info('Database connected');
+    console.log('✅ Database connected');
 
-    // 2) Remove any leftover webhook (crucial for Railway)
-    const webhookInfo = await bot.telegram.getWebhookInfo();
-    if (webhookInfo.url) {
-      await bot.telegram.deleteWebhook();
-      logger.info('Old webhook removed');
-    }
+    // 3. Delete webhook
+    console.log('Deleting webhook...');
+    await bot.telegram.deleteWebhook();
+    console.log('✅ Webhook deleted');
 
-    // 3) Launch with EXPLICIT polling – NO webhook, NO port
+    // 4. Launch bot
+    console.log('Launching bot...');
     await bot.launch({ dropPendingUpdates: true });
-    logger.info('✅ Quite bot launched (polling mode)');
+    console.log('✅ Quite bot launched');
 
-    // 4) Start background engines
+    // 5. Start engines
     scanner.start();
     sellEngine.start();
     copyEngine.start();
-    logger.info('Background engines started');
+    console.log('✅ Background engines started');
 
-    // 5) Wire sell events -> notifications
+    // 6. Wire sell notifications
     sellEngine.on('sell', async (positionId: string, reason: string) => {
       try {
         const pos = await prisma.position.findUnique({ where: { id: positionId } });
@@ -84,17 +84,21 @@ const notifier = new NotificationEngine(bot);
         logger.error('Sell notification error:', err);
       }
     });
-  } catch (err) {
-    logger.error('Startup error:', err);
+
+    console.log('🎉 Quite bot is fully operational!');
+
+  } catch (err: any) {
+    console.error('❌ STARTUP ERROR:', err.message);
+    console.error('Full error:', err);
     process.exit(1);
   }
-})();
+}
 
 // ---------------------------------------------------------------------------
-// Graceful shutdown (Railway sends SIGTERM)
+// Graceful shutdown
 // ---------------------------------------------------------------------------
 const shutdown = async (signal: string) => {
-  logger.info(`Received ${signal}, shutting down…`);
+  console.log(`Received ${signal}, shutting down...`);
   bot.stop(signal);
   scanner.stop();
   sellEngine.stop();
@@ -105,3 +109,8 @@ const shutdown = async (signal: string) => {
 
 process.once('SIGINT', () => shutdown('SIGINT'));
 process.once('SIGTERM', () => shutdown('SIGTERM'));
+
+// ---------------------------------------------------------------------------
+// LAUNCH
+// ---------------------------------------------------------------------------
+start();
