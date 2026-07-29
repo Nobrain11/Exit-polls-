@@ -13,67 +13,55 @@ import { NotificationEngine } from './services/notifications/engine';
 import { BotContext } from './bot/core/types';
 import prisma from './db/prisma';
 
-// ---------------------------------------------------------------------------
 // Safety nets
-// ---------------------------------------------------------------------------
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
-
 process.on('uncaughtException', (err) => {
   logger.error('Uncaught Exception:', err);
 });
 
-// ---------------------------------------------------------------------------
-// Create bot instance FIRST
-// ---------------------------------------------------------------------------
 const bot = new Telegraf<BotContext>(env.BOT_TOKEN);
-
 bot.use(sessionMiddleware);
 bot.use(authMiddleware);
 bot.use(rateLimitMiddleware);
-
 setupBotRoutes(bot);
 
 const sellEngine = new SellEngine();
 const copyEngine = new CopyTradeEngine();
 const notifier = new NotificationEngine(bot);
 
-// ---------------------------------------------------------------------------
-// START FUNCTION — called immediately
-// ---------------------------------------------------------------------------
 async function start() {
   console.log('🚀 Starting Quite bot...');
-  
+
   try {
-    // 1. Connect Redis
-    console.log('Connecting to Redis...');
+    // Connect services
     const redis = getRedis();
     await redis.connect();
     console.log('✅ Redis connected');
 
-    // 2. Connect Database
-    console.log('Connecting to database...');
     await prisma.$connect();
     console.log('✅ Database connected');
 
-    // 3. Delete webhook
-    console.log('Deleting webhook...');
+    // Delete webhook
     await bot.telegram.deleteWebhook();
     console.log('✅ Webhook deleted');
 
-    // 4. Launch bot
-    console.log('Launching bot...');
+    // IMPORTANT: Wait 2 seconds to ensure old instances are dead
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    console.log('Waiting for old instances to die...');
+
+    // Launch bot
     await bot.launch({ dropPendingUpdates: true });
     console.log('✅ Quite bot launched');
 
-    // 5. Start engines
+    // Start engines
     scanner.start();
     sellEngine.start();
     copyEngine.start();
     console.log('✅ Background engines started');
 
-    // 6. Wire sell notifications
+    // Sell notifications
     sellEngine.on('sell', async (positionId: string, reason: string) => {
       try {
         const pos = await prisma.position.findUnique({ where: { id: positionId } });
@@ -94,9 +82,7 @@ async function start() {
   }
 }
 
-// ---------------------------------------------------------------------------
 // Graceful shutdown
-// ---------------------------------------------------------------------------
 const shutdown = async (signal: string) => {
   console.log(`Received ${signal}, shutting down...`);
   bot.stop(signal);
@@ -110,7 +96,4 @@ const shutdown = async (signal: string) => {
 process.once('SIGINT', () => shutdown('SIGINT'));
 process.once('SIGTERM', () => shutdown('SIGTERM'));
 
-// ---------------------------------------------------------------------------
-// LAUNCH
-// ---------------------------------------------------------------------------
 start();
